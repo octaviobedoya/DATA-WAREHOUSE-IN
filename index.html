@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Visualizador DW Psicodélico - Datos Reales de Ventas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        body { 
+            font-family: 'Inter', sans-serif;
+            --color-bg-start: #6a0dad; /* Deep Purple */
+            --color-bg-mid1: #ff00ff; /* Hot Pink */
+            --color-bg-mid2: #0077ff; /* Electric Blue */
+            --color-bg-end: #ff7700;   /* Neon Orange */
+            background: linear-gradient(135deg, var(--color-bg-start), var(--color-bg-mid1), var(--color-bg-mid2), var(--color-bg-end));
+            background-size: 400% 400%;
+            animation: psychedelicBackground 20s ease infinite;
+            color: #f0f0f0; /* Light text for contrast */
+        }
+        @keyframes psychedelicBackground {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        h1, h2, h3, .orbitron-font { font-family: 'Orbitron', sans-serif; }
+
+        .tab-active { 
+            border-color: #39ff14; /* Lime Green */
+            color: #39ff14; 
+            background-color: rgba(255, 255, 255, 0.1);
+            text-shadow: 0 0 5px #39ff14;
+        }
+        .tab-inactive { 
+            border-color: transparent; 
+            color: #f0f0f0;
+        }
+        .tab-inactive:hover {
+            color: #39ff14;
+            border-color: #39ff14;
+        }
+        .content-section { display: none; }
+        .content-section.active { display: block; }
+        
+        .chart-container { 
+            position: relative; 
+            width: 100%; 
+            max-width: 700px; 
+            margin-left: auto; 
+            margin-right: auto; 
+            height: 330px; 
+            max-height: 38vh;
+            padding: 10px;
+            border-radius: 8px;
+            background-color: rgba(0,0,0,0.2);
+         }
+
+        .card-bg {
+            background-color: rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .schema-table {
+            border: 2px solid;
+            transition: all 0.3s ease;
+            z-index: 10; 
+            position: absolute; 
+        }
+        .schema-table:hover {
+            transform: scale(1.08) rotate(2deg);
+            box-shadow: 0 0 20px var(--hover-color, #ffffff);
+        }
+        #fact-table { 
+            background-color: #ff00ff; color: #000000; border-color: #ff7700; 
+            --hover-color: #ff7700;
+        }
+        .dim-table-style { 
+            background-color: #0077ff; color: #ffffff; border-color: #39ff14; 
+            --hover-color: #39ff14;
+        }
+
+        .styled-table thead {
+            background-color: rgba(57, 255, 20, 0.3); 
+        }
+        .styled-table th {
+            color: #f0f0f0;
+             text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        .styled-table tbody tr {
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+        .styled-table tbody tr:hover {
+            background-color: rgba(255, 255, 255, 0.15);
+        }
+        .styled-table td, .styled-table th {
+            padding: 10px 12px;
+        }
+        
+        .accordion-button {
+            background-color: rgba(0,0,0,0.2);
+            color: #f0f0f0;
+            transition: background-color 0.3s ease;
+        }
+        .accordion-button:hover {
+            background-color: rgba(57, 255, 20, 0.3); 
+        }
+        .accordion-button svg {
+            transition: transform 0.3s ease;
+        }
+        .accordion-button[aria-expanded="true"] svg {
+            transform: rotate(180deg);
+        }
+        .accordion-body {
+            background-color: rgba(0,0,0,0.1);
+            border-top: 1px solid rgba(57, 255, 20, 0.5); 
+        }
+        .accordion-body ul li { margin-top: 0.5rem; margin-left: 1rem; list-style-type: disc; color: #e0e0e0; }
+
+        .connector-line {
+            position: absolute;
+            background-color: #39ff14; 
+            z-index: 5; 
+            opacity: 0.7;
+            height: 3px; 
+            transform-origin: 0 0; 
+        }
+        .cardinality-symbol {
+            position: absolute;
+            font-size: 11px;
+            font-weight: bold;
+            color: #ffffff; /* White for better contrast on lines */
+            background-color: #6a0dad; /* Deep purple background */
+            padding: 0px 4px;
+            border-radius: 3px;
+            border: 1px solid #39ff14; /* Lime border */
+            z-index: 6; 
+            user-select: none;
+            text-shadow: 0 0 3px #000000;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container mx-auto p-4 md:p-6">
+        <header class="text-center mb-10">
+            <h1 class="text-4xl md:text-5xl font-bold text-white orbitron-font" style="text-shadow: 0 0 10px #ff00ff, 0 0 20px #0077ff;">Diseño de Data Warehouse de Ventas</h1>
+            <p class="mt-3 text-lg text-gray-200">Exploración Interactiva de la Arquitectura de Datos de `bd_evidencia`.</p>
+        </header>
+
+        <nav class="mb-10 border-b-2 border-purple-400 border-opacity-50">
+            <ul class="flex flex-wrap -mb-px justify-center text-sm font-medium text-center" id="main-tabs">
+                <li class="mr-2">
+                    <button class="inline-block p-4 border-b-2 rounded-t-lg tab-active orbitron-font" data-tab="overview">
+                        <span class="text-xl">🌌</span> Visión General del Esquema
+                    </button>
+                </li>
+                <li class="mr-2">
+                    <button class="inline-block p-4 border-b-2 rounded-t-lg tab-inactive orbitron-font" data-tab="tables">
+                        <span class="text-xl">🌠</span> Explorador de Tablas
+                    </button>
+                </li>
+                <li class="mr-2">
+                    <button class="inline-block p-4 border-b-2 rounded-t-lg tab-inactive orbitron-font" data-tab="etl">
+                        <span class="text-xl">✨</span> Proceso ETL Detallado
+                    </button>
+                </li>
+                <li>
+                    <button class="inline-block p-4 border-b-2 rounded-t-lg tab-inactive orbitron-font" data-tab="dashboard">
+                        <span class="text-xl">🚀</span> Dashboard de Ejemplo
+                    </button>
+                </li>
+            </ul>
+        </nav>
+
+        <main id="main-content">
+            <section id="overview" class="content-section active">
+                <div class="card-bg p-6 rounded-xl shadow-2xl">
+                    <h2 class="text-3xl font-bold mb-4 text-center text-lime-300 orbitron-font">Esquema de Estrella: `bd_evidencia`</h2>
+                    <p class="text-gray-300 mb-8 text-center">
+                        El Data Warehouse para `bd_evidencia` se estructura como un esquema de estrella. La tabla central `FactVentas` (hechos) contiene las métricas cuantitativas y se conecta a las tablas dimensionales que proveen el contexto (relación 1:N). ¡Haz clic en una tabla para explorar sus atributos!
+                    </p>
+                    <div id="schema-container" class="relative min-h-[650px] md:min-h-[600px] flex items-center justify-center p-4 overflow-hidden"> {/* Increased min-height */}
+                        <div id="fact-table" data-target-tab="tables" data-target-subtab="fact" class="schema-table p-4 rounded-lg shadow-xl w-48 h-24 flex items-center justify-center text-center cursor-pointer"><strong>FactVentas</strong><br>(Hechos)</div>
+                        <div id="dim-producto" data-target-tab="tables" data-target-subtab="dim" data-dim="DimProducto" class="schema-table dim-table-style p-4 rounded-lg shadow-lg w-44 h-20 flex items-center justify-center text-center cursor-pointer">DimProducto</div>
+                        <div id="dim-cliente" data-target-tab="tables" data-target-subtab="dim" data-dim="DimCliente" class="schema-table dim-table-style p-4 rounded-lg shadow-lg w-44 h-20 flex items-center justify-center text-center cursor-pointer">DimCliente</div>
+                        <div id="dim-tiempo" data-target-tab="tables" data-target-subtab="dim" data-dim="DimTiempo" class="schema-table dim-table-style p-4 rounded-lg shadow-lg w-44 h-20 flex items-center justify-center text-center cursor-pointer">DimTiempo</div>
+                        <div id="dim-geografia" data-target-tab="tables" data-target-subtab="dim" data-dim="DimGeografia" class="schema-table dim-table-style p-4 rounded-lg shadow-lg w-44 h-20 flex items-center justify-center text-center cursor-pointer">DimGeografia</div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tables" class="content-section">
+                <div class="card-bg p-6 rounded-xl shadow-2xl">
+                     <p class="text-gray-300 mb-6 text-center">
+                        Explora la definición detallada de cada tabla del Data Warehouse. Las Dimensiones (DimProducto, DimCliente, etc.) describen el "quién, qué, dónde, cuándo" de los datos, mientras que la tabla de Hechos (`FactVentas`) contiene las métricas numéricas.
+                    </p>
+                     <div class="border-b-2 border-purple-400 border-opacity-50 mb-4">
+                        <ul class="flex flex-wrap -mb-px orbitron-font" id="table-type-tabs">
+                            <li><button class="inline-block p-4 border-b-2 font-medium rounded-t-lg tab-active" data-table-type="dim">Tablas de Dimensiones</button></li>
+                            <li><button class="inline-block p-4 border-b-2 font-medium rounded-t-lg tab-inactive" data-table-type="fact">Tabla de Hechos</button></li>
+                        </ul>
+                    </div>
+                    
+                    <div id="dim-tables-content" class="table-content active">
+                        <div class="mb-4">
+                            <select id="dimension-selector" class="w-full md:w-1/3 p-3 border-2 border-lime-400 rounded-md bg-purple-900 bg-opacity-50 text-white focus:outline-none focus:ring-2 focus:ring-lime-300 orbitron-font">
+                                <option value="DimProducto">DimProducto</option>
+                                <option value="DimCliente">DimCliente</option>
+                                <option value="DimGeografia">DimGeografia</option>
+                                <option value="DimTiempo">DimTiempo</option>
+                            </select>
+                        </div>
+                        <div id="dimension-details"></div>
+                    </div>
+
+                    <div id="fact-tables-content" class="table-content" style="display: none;">
+                         <div id="fact-details"></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="etl" class="content-section">
+                 <div class="card-bg p-6 rounded-xl shadow-2xl">
+                    <h2 class="text-3xl font-bold mb-4 text-center text-lime-300 orbitron-font">El Proceso ETL para `bd_evidencia`</h2>
+                    <p class="text-gray-300 mb-8 text-center">
+                       El proceso de Extracción, Transformación y Carga (ETL) es fundamental para poblar el Data Warehouse con datos de calidad, consistentes y listos para el análisis. Aquí se describen sus componentes clave.
+                    </p>
+                    <div class="space-y-4" id="accordion-etl">
+                    </div>
+                 </div>
+            </section>
+            
+            <section id="dashboard" class="content-section">
+                 <div class="card-bg p-6 rounded-xl shadow-2xl">
+                    <h2 class="text-3xl font-bold mb-4 text-center text-lime-300 orbitron-font">Dashboard de Análisis de Ventas (Ejemplo)</h2>
+                     <p class="text-gray-300 mb-8 text-center">
+                       Este es un panel de ejemplo que ilustra el tipo de visualizaciones y análisis que se pueden realizar con los datos del Data Warehouse. Las métricas se derivan de `FactVentas` y sus dimensiones asociadas.
+                    </p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div class="p-4 rounded-lg shadow-xl bg-black bg-opacity-20">
+                            <h3 class="font-semibold mb-3 text-center text-xl text-purple-300 orbitron-font">Ventas Totales por País (USD)</h3>
+                            <div class="chart-container">
+                                <canvas id="salesByCountryChart"></canvas>
+                            </div>
+                        </div>
+                        <div class="p-4 rounded-lg shadow-xl bg-black bg-opacity-20">
+                            <h3 class="font-semibold mb-3 text-center text-xl text-purple-300 orbitron-font">Margen Bruto Mensual (Año Ficticio)</h3>
+                             <div class="chart-container">
+                                <canvas id="marginOverTimeChart"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                 </div>
+            </section>
+
+        </main>
+         <footer class="text-center mt-12 py-6 border-t-2 border-purple-400 border-opacity-30">
+            <p class="text-sm text-purple-300 orbitron-font">Visualizador DW `bd_evidencia` v2.6 - Esquema Completo</p>
+        </footer>
+    </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const mainTabs = document.getElementById('main-tabs');
+    const contentSections = document.getElementById('main-content').querySelectorAll('.content-section');
+    const tableTypeTabs = document.getElementById('table-type-tabs');
+    const tableContentSections = document.querySelectorAll('.table-content');
+    const dimensionSelector = document.getElementById('dimension-selector');
+    const schemaContainer = document.getElementById('schema-container');
+    
+    const dbSchema = {
+        dimensions: {
+            DimProducto: {
+                description: "Almacena la información detallada de los artículos.",
+                source: "tblProductos",
+                columns: [
+                    { name: "ProductoKey", type: "INT, PK", desc: "Clave subrogada autoincremental única para cada registro en la dimensión." },
+                    { name: "CODART", type: "VARCHAR(50)", desc: "Código original del artículo proveniente de tblProductos.CODART (Clave de Negocio)." },
+                    { name: "ArticuloNombre", type: "VARCHAR(255)", desc: "Nombre o descripción del artículo, proveniente de tblProductos.Articulo." },
+                    { name: "FechaInicioValidez", type: "DATETIME", desc: "Para SCD Tipo 2, indica cuándo el registro se volvió válido." },
+                    { name: "FechaFinValidez", type: "DATETIME", desc: "Para SCD Tipo 2, indica cuándo el registro dejó de ser la versión actual." },
+                    { name: "EsVersionActual", type: "BIT", desc: "Para SCD Tipo 2, indica si es la versión más reciente del producto." },
+                ]
+            },
+            DimCliente: {
+                description: "Almacena la información de los clientes.",
+                source: "tblClientes",
+                columns: [
+                    { name: "ClienteKey", type: "INT, PK", desc: "Clave subrogada autoincremental única para cada registro." },
+                    { name: "CODCLI", type: "VARCHAR(50)", desc: "Código original del cliente proveniente de tblClientes.CODCLI (Clave de Negocio)." },
+                    { name: "ClienteNombre", type: "VARCHAR(255)", desc: "Nombre del cliente, proveniente de tblClientes.Cliente." },
+                    { name: "FechaInicioValidez", type: "DATETIME", desc: "Para SCD Tipo 2." },
+                    { name: "FechaFinValidez", type: "DATETIME", desc: "Para SCD Tipo 2." },
+                    { name: "EsVersionActual", type: "BIT", desc: "Para SCD Tipo 2, indica si es la versión actual." },
+                ]
+            },
+            DimGeografia: {
+                description: "Almacena la información geográfica de los clientes.",
+                source: "tblClientes (columnas Pais, Departamento, Zona)",
+                columns: [
+                    { name: "GeografiaKey", type: "INT, PK", desc: "Clave subrogada autoincremental única para cada combinación geográfica." },
+                    { name: "Pais", type: "VARCHAR(100)", desc: "País del cliente, proveniente de tblClientes.Pais." },
+                    { name: "Departamento", type: "VARCHAR(100)", desc: "Departamento del cliente, proveniente de tblClientes.Departamento." },
+                    { name: "Zona", type: "VARCHAR(100)", desc: "Zona del cliente, proveniente de tblClientes.Zona." },
+                ]
+            },
+            DimTiempo: {
+                description: "Almacena atributos de tiempo derivados de las fechas de las facturas.",
+                source: "Derivada de tblFactura.Fecha",
+                columns: [
+                    { name: "TiempoKey", type: "INT, PK", desc: "Clave única, usualmente en formato YYYYMMDD." },
+                    { name: "FechaCompleta", type: "DATE", desc: "La fecha actual, proveniente de tblFactura.Fecha." },
+                    { name: "Anio", type: "INT", desc: "Año de la fecha." },
+                    { name: "Trimestre", type: "INT", desc: "Trimestre del año (1-4)." },
+                    { name: "NombreTrimestre", type: "VARCHAR(10)", desc: "Ej: \"T1 2024\"." },
+                    { name: "Mes", type: "INT", desc: "Mes del año (1-12)." },
+                    { name: "NombreMes", type: "VARCHAR(20)", desc: "Ej: \"Enero\"." },
+                    { name: "DiaDelMes", type: "INT", desc: "Día del mes (1-31)." },
+                    { name: "DiaDeLaSemana", type: "INT", desc: "Día de la semana (1-7, donde 1 podría ser Lunes)." },
+                    { name: "NombreDiaSemana", type: "VARCHAR(20)", desc: "Ej: \"Lunes\"." },
+                    { name: "SemanaDelAnio", type: "INT", desc: "Número de la semana en el año." },
+                    { name: "EsFinDeSemana", type: "BIT", desc: "Indica si es Sábado o Domingo." },
+                ]
+            }
+        },
+        facts: {
+            FactVentas: {
+                description: "Almacena los detalles de las ventas a nivel de línea de factura.",
+                source: "tblFactura_Detalle y tblFactura",
+                columns: [
+                    { name: "ProductoKey", type: "INT, FK", desc: "Referencia a DimProducto.ProductoKey." },
+                    { name: "ClienteKey", type: "INT, FK", desc: "Referencia a DimCliente.ClienteKey." },
+                    { name: "GeografiaKey", type: "INT, FK", desc: "Referencia a DimGeografia.GeografiaKey." },
+                    { name: "TiempoKey", type: "INT, FK", desc: "Referencia a DimTiempo.TiempoKey (basada en tblFactura.Fecha)." },
+                    { name: "SerieFactura", type: "VARCHAR(10)", desc: "Dimensión Degenerada: Serie de la factura, proveniente de tblFactura_Detalle.Serie." },
+                    { name: "NumeroFactura", type: "INT", desc: "Dimensión Degenerada: Número de la factura, proveniente de tblFactura_Detalle.Nfactura." },
+                    { name: "UnidadesVendidas", type: "INT", desc: "Unidades vendidas, proveniente de tblFactura_Detalle.Unidades." },
+                    { name: "PrecioUnitario", type: "DECIMAL(18, 2)", desc: "Precio unitario, proveniente de tblFactura_Detalle.Precio." },
+                    { name: "CostoUnitario", type: "DECIMAL(18, 2)", desc: "Costo unitario, proveniente de tblFactura_Detalle.Costo." },
+                    { name: "ImporteTotalVenta", type: "DECIMAL(18, 2)", desc: "Calculado (UnidadesVendidas * PrecioUnitario)." },
+                    { name: "ImporteTotalCosto", type: "DECIMAL(18, 2)", desc: "Calculado (UnidadesVendidas * CostoUnitario)." },
+                    { name: "MargenBruto", type: "DECIMAL(18, 2)", desc: "Calculado (ImporteTotalVenta - ImporteTotalCosto)." },
+                    { name: "FechaCargaDW", type: "DATETIME", desc: "Fecha y hora en que el registro fue cargado al Data Warehouse." },
+                ]
+            }
+        }
+    };
+
+    const etlData = [
+        { 
+            title: '🌀 Limpieza y Formateo de Datos', 
+            content: `Esencial para la calidad del DW. Incluye: 
+                        <ul>
+                            <li><strong>Consistencia de Nombres:</strong> Estandarizar 'ArticuloNombre', 'ClienteNombre', 'Pais', 'Departamento', 'Zona'.</li>
+                            <li><strong>Formato de Fechas:</strong> Asegurar validez de 'tblFactura.Fecha'.</li>
+                            <li><strong>Valores Numéricos:</strong> Verificar 'Unidades', 'Precio', 'Costo'.</li>
+                            <li><strong>Manejo de Nulos:</strong> Definir estrategia para valores desconocidos en dimensiones; métricas no deben ser nulas.</li>
+                            <li><strong>Codificación y Tipos de Datos:</strong> Asegurar uniformidad y compatibilidad.</li>
+                        </ul>` 
+        },
+        { 
+            title: '📜 Documentación Vital: Metadatos', 
+            content: `Describen los datos para su correcto entendimiento y uso. Para cada tabla/columna:
+                        <ul>
+                            <li><strong>Nombre y Descripción de Negocio.</strong></li>
+                            <li><strong>Tipo de Dato y Fuente Original</strong> (ej. 'tblProductos.CODART').</li>
+                            <li><strong>Reglas de Transformación Aplicadas</strong> (ej. 'Calculado como Unidades * Precio').</li>
+                            <li><strong>Permite Nulos, Frecuencia de Actualización, Responsable.</strong></li>
+                        </ul>` 
+        },
+        { 
+            title: '⚙️ Carga Eficiente: Especificaciones de Carga Incremental', 
+            content: `Actualiza el DW solo con datos nuevos o modificados.
+                        <ul>
+                            <li><strong>Identificación de Cambios:</strong> Usar 'tblFactura.Fecha' para nuevos hechos. Para dimensiones, considerar columnas de modificación o comparación.</li>
+                            <li><strong>Proceso ETL Incremental:</strong> Extraer cambios, transformar (buscar claves, aplicar SCD Tipo 2 para dimensiones si cambian, calcular métricas), y cargar (dimensiones primero, luego hechos).</li>
+                            <li><strong>Manejo de Errores:</strong> Registrar y gestionar registros que no puedan procesarse.</li>
+                        </ul>` 
+        }
+    ];
+
+    function createTableHTML(tableData) {
+        let html = `<h3 class="text-2xl font-semibold text-lime-300 mb-2 orbitron-font">${tableData.name}</h3>`;
+        html += `<p class="text-sm text-purple-300 mb-1"><strong>Fuente Original:</strong> ${tableData.source}</p>`;
+        html += `<p class="mb-4 text-gray-300">${tableData.description}</p>`;
+        html += `<div class="overflow-x-auto"><table class="w-full text-sm text-left styled-table">`;
+        html += `<thead><tr>`;
+        html += `<th scope="col" class="px-4 py-3">Columna</th><th scope="col" class="px-4 py-3">Tipo de Dato</th><th scope="col" class="px-4 py-3">Descripción</th>`;
+        html += `</tr></thead><tbody>`;
+        tableData.columns.forEach(col => {
+            html += `<tr>`;
+            html += `<td class="px-4 py-3 font-medium text-white whitespace-nowrap">${col.name}</td>`;
+            html += `<td class="px-4 py-3 text-gray-300">${col.type}</td>`;
+            html += `<td class="px-4 py-3 text-gray-300">${col.desc}</td>`;
+            html += `</tr>`;
+        });
+        html += `</tbody></table></div>`;
+        return html;
+    }
+
+    function renderDimensionTable(dimName) {
+        const tableData = { name: dimName, ...dbSchema.dimensions[dimName] };
+        document.getElementById('dimension-details').innerHTML = createTableHTML(tableData);
+    }
+    
+    function renderFactTable() {
+        const tableData = { name: 'FactVentas', ...dbSchema.facts.FactVentas };
+        document.getElementById('fact-details').innerHTML = createTableHTML(tableData);
+    }
+    
+    function renderAccordionETL() {
+        const container = document.getElementById('accordion-etl');
+        let html = '';
+        etlData.forEach((item, index) => {
+            html += `
+                <div class="border-2 border-purple-500 border-opacity-50 rounded-lg overflow-hidden">
+                    <h2>
+                        <button type="button" class="accordion-button flex items-center justify-between w-full p-5 font-medium text-left orbitron-font" data-accordion-target="#accordion-body-${index}" aria-expanded="false">
+                            <span>${item.title}</span>
+                            <svg data-accordion-icon class="w-6 h-6 shrink-0 text-lime-300" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+                        </button>
+                    </h2>
+                    <div id="accordion-body-${index}" class="hidden p-5 accordion-body">
+                        <div class="text-gray-300">${item.content}</div>
+                    </div>
+                </div>
+            `;
+        });
+        container.innerHTML = html;
+        
+        container.querySelectorAll('button[data-accordion-target]').forEach(button => {
+            button.addEventListener('click', () => {
+                const targetId = button.getAttribute('data-accordion-target');
+                const targetPanel = document.querySelector(targetId);
+                const isExpanded = button.getAttribute('aria-expanded') === 'true';
+                button.setAttribute('aria-expanded', !isExpanded);
+                targetPanel.classList.toggle('hidden');
+            });
+        });
+    }
+
+    mainTabs.addEventListener('click', (e) => {
+        const tabButton = e.target.closest('button');
+        if (!tabButton) return;
+        const tabName = tabButton.dataset.tab;
+
+        mainTabs.querySelectorAll('button').forEach(btn => {
+            btn.classList.remove('tab-active');
+            btn.classList.add('tab-inactive');
+        });
+        tabButton.classList.add('tab-active');
+        tabButton.classList.remove('tab-inactive');
+
+        contentSections.forEach(section => {
+            section.classList.remove('active');
+            if (section.id === tabName) {
+                section.classList.add('active');
+            }
+        });
+        
+        if (tabName === 'overview') {
+            setTimeout(() => { 
+                 positionSchemaElements();
+                 drawConnectors();
+            }, 50); 
+        } else if (tabName === 'dashboard') {
+            initCharts();
+        }
+    });
+    
+    tableTypeTabs.addEventListener('click', (e) => {
+        const tabButton = e.target.closest('button');
+        if (!tabButton) return;
+        const tableType = tabButton.dataset.tableType;
+
+        tableTypeTabs.querySelectorAll('button').forEach(btn => {
+            btn.classList.remove('tab-active');
+            btn.classList.add('tab-inactive');
+        });
+        tabButton.classList.add('tab-active');
+        tabButton.classList.remove('tab-inactive');
+        
+        tableContentSections.forEach(section => {
+            section.style.display = 'none';
+        });
+        
+        document.getElementById(`${tableType}-tables-content`).style.display = 'block';
+    });
+
+    dimensionSelector.addEventListener('change', (e) => {
+        renderDimensionTable(e.target.value);
+    });
+    
+    document.querySelectorAll('#schema-container div[data-target-tab]').forEach(el => {
+        el.addEventListener('click', () => {
+            const targetTab = el.dataset.targetTab;
+            const targetSubTab = el.dataset.targetSubtab;
+            const dimensionName = el.dataset.dim;
+            
+            document.querySelector(`button[data-tab="${targetTab}"]`).click();
+            
+            if (targetTab === 'tables') {
+                 document.querySelector(`button[data-table-type="${targetSubTab}"]`).click();
+                 if(targetSubTab === 'dim' && dimensionName) {
+                     dimensionSelector.value = dimensionName;
+                     renderDimensionTable(dimensionName);
+                 }
+            }
+        });
+    });
+
+    function positionSchemaElements() {
+        const fact = document.getElementById('fact-table');
+        const dimProducto = document.getElementById('dim-producto');
+        const dimCliente = document.getElementById('dim-cliente'); 
+        const dimTiempo = document.getElementById('dim-tiempo');
+        const dimGeografia = document.getElementById('dim-geografia');
+        
+        if (!schemaContainer || !fact || !dimProducto || !dimCliente || !dimTiempo || !dimGeografia) {
+            return;
+        }
+
+        const containerWidth = schemaContainer.offsetWidth;
+        const containerHeight = schemaContainer.offsetHeight;
+        
+        fact.style.left = `${containerWidth / 2 - fact.offsetWidth / 2}px`;
+        fact.style.top = `${containerHeight / 2 - fact.offsetHeight / 2}px`;
+
+        const factOffsetLeft = fact.offsetLeft;
+        const factOffsetTop = fact.offsetTop;
+        const spacing = 80; // Adjusted spacing for better visual separation
+
+        dimTiempo.style.left = `${containerWidth / 2 - dimTiempo.offsetWidth / 2}px`;
+        dimTiempo.style.top = `${factOffsetTop - dimTiempo.offsetHeight - spacing}px`; 
+
+        dimProducto.style.left = `${factOffsetLeft - dimProducto.offsetWidth - spacing}px`;
+        dimProducto.style.top = `${containerHeight / 2 - dimProducto.offsetHeight / 2}px`;
+        
+        dimCliente.style.left = `${factOffsetLeft + fact.offsetWidth + spacing}px`;
+        dimCliente.style.top = `${containerHeight / 2 - dimCliente.offsetHeight / 2}px`;
+        
+        dimGeografia.style.left = `${containerWidth / 2 - dimGeografia.offsetWidth / 2}px`;
+        dimGeografia.style.top = `${factOffsetTop + fact.offsetHeight + spacing}px`;
+    }
+
+    function createLine(x1, y1, x2, y2) {
+        const length = Math.sqrt(((x2 - x1) * (x2 - x1)) + ((y2 - y1) * (y2 - y1)));
+        const angle = Math.atan2(y2 - y1, x2 - x1) * 180 / Math.PI;
+        
+        const line = document.createElement('div');
+        line.classList.add('connector-line');
+        line.style.width = `${length}px`;
+        line.style.transform = `rotate(${angle}deg)`;
+        line.style.left = `${x1}px`;
+        line.style.top = `${y1}px`;
+        return line;
+    }
+
+    function createCardinalitySymbol(text, x, y) {
+        const symbol = document.createElement('div');
+        symbol.classList.add('cardinality-symbol');
+        symbol.textContent = text;
+        // The offsetWidth/Height might be 0 if the element is not fully rendered yet.
+        // We'll adjust this after appending if necessary or rely on CSS for centering.
+        symbol.style.left = `${x}px`; 
+        symbol.style.top = `${y}px`;  
+        // Use transform to center based on its own size, more reliable than offsetWidth/Height at creation
+        symbol.style.transform = 'translate(-50%, -50%)';
+        return symbol;
+    }
+
+    function drawConnectors() {
+        const existingLines = schemaContainer.querySelectorAll('.connector-line');
+        existingLines.forEach(line => line.remove());
+        const existingSymbols = schemaContainer.querySelectorAll('.cardinality-symbol');
+        existingSymbols.forEach(symbol => symbol.remove());
+
+        const factTable = document.getElementById('fact-table');
+        const dimTables = [
+            {el: document.getElementById('dim-producto'), name: 'DimProducto'},
+            {el: document.getElementById('dim-cliente'), name: 'DimCliente'},
+            {el: document.getElementById('dim-tiempo'), name: 'DimTiempo'},
+            {el: document.getElementById('dim-geografia'), name: 'DimGeografia'}
+        ];
+
+        if (!factTable || dimTables.some(item => !item.el)) {
+            return;
+        }
+
+        const factCenterX = factTable.offsetLeft + factTable.offsetWidth / 2;
+        const factCenterY = factTable.offsetTop + factTable.offsetHeight / 2;
+        const symbolOffsetPixels = 20; // Distance of symbol from the table edge along the line
+
+        dimTables.forEach(item => {
+            const dimTable = item.el;
+            if (!dimTable) return;
+
+            const dimCenterX = dimTable.offsetLeft + dimTable.offsetWidth / 2;
+            const dimCenterY = dimTable.offsetTop + dimTable.offsetHeight / 2;
+            
+            schemaContainer.appendChild(createLine(factCenterX, factCenterY, dimCenterX, dimCenterY));
+
+            const dx = dimCenterX - factCenterX;
+            const dy = dimCenterY - factCenterY;
+            const length = Math.sqrt(dx*dx + dy*dy);
+            if (length === 0) return; // Avoid division by zero
+            const unitDx = dx / length;
+            const unitDy = dy / length;
+
+            // "M" symbol near FactVentas, along the line towards the dimension
+            const mSymbolX = factCenterX + unitDx * (factTable.offsetWidth / 2 + symbolOffsetPixels);
+            const mSymbolY = factCenterY + unitDy * (factTable.offsetHeight / 2 + symbolOffsetPixels);
+            schemaContainer.appendChild(createCardinalitySymbol('M', mSymbolX, mSymbolY));
+
+            // "1" symbol near Dimension table, along the line towards the fact table
+            const oneSymbolX = dimCenterX - unitDx * (dimTable.offsetWidth / 2 + symbolOffsetPixels);
+            const oneSymbolY = dimCenterY - unitDy * (dimTable.offsetHeight / 2 + symbolOffsetPixels);
+            schemaContainer.appendChild(createCardinalitySymbol('1', oneSymbolX, oneSymbolY));
+        });
+    }
+    
+    let chartsInitialized = false;
+    function initCharts() {
+        if (chartsInitialized) { 
+            if (window.salesChartInstance) window.salesChartInstance.destroy();
+            if (window.marginChartInstance) window.marginChartInstance.destroy();
+        }
+        
+        Chart.defaults.color = '#e0e0e0';
+        Chart.defaults.borderColor = 'rgba(255, 255, 255, 0.2)';
+
+        const salesByCountryCtx = document.getElementById('salesByCountryChart').getContext('2d');
+        window.salesChartInstance = new Chart(salesByCountryCtx, {
+            type: 'bar',
+            data: {
+                labels: ['Colombia', 'México', 'Argentina', 'Perú', 'Chile'], 
+                datasets: [{
+                    label: 'Ventas (en miles de USD)',
+                    data: [120, 95, 75, 60, 50], 
+                    backgroundColor: ['#ff00ff', '#00ffff', '#ff7700', '#39ff14', '#0077ff'],
+                    borderColor: ['#ff7700', '#39ff14', '#0077ff', '#ff00ff', '#00ffff'],
+                    borderWidth: 2,
+                    borderRadius: 5,
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false, labels: { color: '#e0e0e0'} } },
+                scales: { 
+                    y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.1)'}, ticks: { color: '#e0e0e0'} },
+                    x: { grid: { display: false }, ticks: { color: '#e0e0e0'} }
+                }
+            }
+        });
+
+        const marginOverTimeCtx = document.getElementById('marginOverTimeChart').getContext('2d');
+        window.marginChartInstance = new Chart(marginOverTimeCtx, {
+            type: 'line',
+            data: {
+                labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'],
+                datasets: [{
+                    label: 'Margen Bruto (en miles de USD)',
+                    data: [15, 18, 22, 20, 25, 28, 30, 27, 32, 35, 33, 40], 
+                    fill: true,
+                    borderColor: '#39ff14', 
+                    backgroundColor: 'rgba(57, 255, 20, 0.2)',
+                    tension: 0.4,
+                    pointBackgroundColor: '#ff00ff', 
+                    pointBorderColor: '#ffffff',
+                    pointRadius: 5,
+                    pointHoverRadius: 8
+                }]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false, labels: {color: '#e0e0e0'} } },
+                scales: { 
+                    y: { beginAtZero: false, grid: { color: 'rgba(255,255,255,0.1)'}, ticks: { color: '#e0e0e0'} },
+                    x: { grid: { display: false }, ticks: {color: '#e0e0e0'} }
+                }
+            }
+        });
+        chartsInitialized = true;
+    }
+
+    renderDimensionTable('DimProducto');
+    renderFactTable();
+    renderAccordionETL();
+    
+    function initializeSchemaView() {
+        if (document.getElementById('overview').classList.contains('active')) {
+            setTimeout(() => {
+                positionSchemaElements();
+                drawConnectors();
+            }, 150); 
+        }
+    }
+    
+    initializeSchemaView();
+
+    window.addEventListener('resize', () => {
+        if (document.getElementById('overview').classList.contains('active')) {
+            positionSchemaElements();
+            drawConnectors();
+        }
+    });
+    
+    if(document.getElementById('dashboard').classList.contains('active')) {
+        initCharts();
+    }
+});
+</script>
+</body>
+</html>
